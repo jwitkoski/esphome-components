@@ -32,7 +32,8 @@ static constexpr size_t MAX_COMMAND_LENGTH = 256;
 static constexpr size_t MAX_RESPONSE_LENGTH = 2048;
 static constexpr uint8_t DEFAULT_MAX_CLIENTS = 4;
 static constexpr uint8_t MAX_LOGIN_ATTEMPTS = 3;
-static constexpr uint32_t CLIENT_TIMEOUT_MS = 60000;  // 60 seconds
+// Note: Bumped to 120 to account for Home Assistant's 60s refresh
+static constexpr uint32_t CLIENT_TIMEOUT_MS = 120000;  // 120 seconds
 
 // NUT protocol version
 static constexpr const char* NUT_VERSION = "2.8.0";
