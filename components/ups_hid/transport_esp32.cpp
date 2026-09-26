@@ -535,13 +535,21 @@ esp_err_t Esp32UsbTransport::claim_interface() {
     // Find HID interface
     const usb_intf_desc_t *intf_desc = nullptr;
     int offset = 0;
+
+    // Determine if Vertiv PST5
+    const bool vertiv_pst = device_.vendor_id == 0x10AF && device_.product_id == 0x0002;
     
     for (int i = 0; i < config_desc->bNumInterfaces; i++) {
         intf_desc = usb_parse_interface_descriptor(config_desc, i, 0, &offset);
-        if (intf_desc && intf_desc->bInterfaceClass == USB_CLASS_HID) {
-            device_.interface_num = intf_desc->bInterfaceNumber;
-            break;
-        }
+
+        if (!intf_desc || intf_desc->bInterfaceClass != USB_HID_CLASS)
+            continue;
+
+        if (vertiv_pst && intf_desc->bInterfaceNumber != 1)
+            continue;
+
+        device_.interface_num = intf_desc->bInterfaceNumber;
+        break;
     }
     
     if (!intf_desc || intf_desc->bInterfaceClass != USB_CLASS_HID) {
