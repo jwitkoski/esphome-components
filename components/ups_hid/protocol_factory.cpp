@@ -28,6 +28,7 @@ ProtocolFactory::get_fallback_registry() {
 std::unique_ptr<UpsProtocolBase> create_cyberpower_protocol(UpsHidComponent* parent);
 std::unique_ptr<UpsProtocolBase> create_apc_protocol(UpsHidComponent* parent);
 std::unique_ptr<UpsProtocolBase> create_generic_protocol(UpsHidComponent* parent);
+std::unique_ptr<UpsProtocolBase> create_vertiv_protocol(UpsHidComponent *parent);
 
 void ProtocolFactory::ensure_initialized() {
     static bool initialized = false;
@@ -63,6 +64,14 @@ void ProtocolFactory::register_builtin_protocols() {
     apc.supported_vendors = {0x051D};
     apc.priority = 100;
     register_protocol_for_vendor(0x051D, apc);
+    
+    ProtocolInfo vertiv;
+    vertiv.creator = create_vertiv_protocol;
+    vertiv.name = "Vertiv/Liebert HID Protocol";
+    vertiv.description = "Vertiv/Liebert 10AF:0002 HID Power Device protocol";
+    vertiv.supported_vendors = {0x10AF};
+    vertiv.priority = 100;
+    register_protocol_for_vendor(0x10AF, vertiv);
 
     ProtocolInfo generic;
     generic.creator = create_generic_protocol;

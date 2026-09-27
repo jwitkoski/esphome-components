@@ -98,8 +98,8 @@ esp_err_t Esp32UsbTransport::hid_get_report(uint8_t report_type, uint8_t report_
         return ESP_ERR_INVALID_ARG;
     }
 
-    ESP_LOGD(ESP32_USB_TAG, "HID GET_REPORT: type=0x%02X, id=0x%02X, max_len=%zu", 
-             report_type, report_id, *data_len);
+    ESP_LOGD(ESP32_USB_TAG, "HID GET_REPORT: interface=%u type=0x%02X, id=0x%02X, max_len=%zu", 
+             device_.interface_num, report_type, report_id, *data_len);
     
     // Use fixed buffer sizes like working implementation
     uint8_t buffer[64] = {0}; // Fixed size buffer
@@ -551,6 +551,13 @@ esp_err_t Esp32UsbTransport::claim_interface() {
         device_.interface_num = intf_desc->bInterfaceNumber;
         break;
     }
+    
+    ESP_LOGI(
+        ESP32_USB_TAG,
+        "Selected HID interface %u%s",
+        device_.interface_num,
+        vertiv_pst ? " (Vertiv 10AF:0002 override)" : ""
+    );
     
     if (!intf_desc || intf_desc->bInterfaceClass != USB_CLASS_HID) {
         set_last_error("No HID interface found");
