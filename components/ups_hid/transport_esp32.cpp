@@ -5,6 +5,39 @@
 
 #ifdef USE_ESP32
 
+namespace {
+
+struct HidInterfaceQuirk
+{
+    uint16_t vendor_id;
+    uint16_t product_id;
+    uint8_t interface_num;
+};
+
+constexpr HidInterfaceQuirk HID_INTERFACE_QUIRKS[] = {
+    // Vertiv/Liebert 10AF:0002 exposes its actual HID Power Device
+    // descriptor on interface 1. Interface 0 is vendor-specific.
+    {0x10AF, 0x0002, 1},
+};
+
+bool get_preferred_hid_interface(
+    uint16_t vendor_id,
+    uint16_t product_id,
+    uint8_t &interface_num)
+{
+    for (const auto &quirk : HID_INTERFACE_QUIRKS)
+    {
+        if (quirk.vendor_id == vendor_id && quirk.product_id == product_id)
+        {
+            interface_num = quirk.interface_num;
+            return true;
+        }
+    }
+    return false;
+}
+
+}  // namespace
+
 namespace esphome {
 namespace ups_hid {
 
@@ -524,53 +557,78 @@ esp_err_t Esp32UsbTransport::find_and_open_device() {
     return ESP_OK;
 }
 
-esp_err_t Esp32UsbTransport::claim_interface() {
-    const usb_config_desc_t *config_desc;
-    esp_err_t ret = usb_host_get_active_config_descriptor(device_.dev_hdl, &config_desc);
-    if (ret != ESP_OK) {
+esp_err_t Esp32UsbTransport::claim_interface()
+{
+    const usb_config_desc_t *config_desc = nullptr;
+
+    esp_err_t ret = usb_host_get_active_config_descriptor(
+        device_.dev_hdl,
+        &config_desc);
+
+    if (ret != ESP_OK)
+    {
         set_last_error("Failed to get config descriptor");
         return ret;
     }
-    
-    // Find HID interface
-    const usb_intf_desc_t *intf_desc = nullptr;
-    int offset = 0;
 
-    // Determine if Vertiv PST5
-    const bool vertiv_pst = device_.vendor_id == 0x10AF && device_.product_id == 0x0002;
-    
-    for (int i = 0; i < config_desc->bNumInterfaces; i++) {
-        intf_desc = usb_parse_interface_descriptor(config_desc, i, 0, &offset);
+    uint8_t preferred_interface = 0;
+    const bool has_preferred_interface = get_preferred_hid_interface(
+        device_.vendor_id,
+        device_.product_id,
+        preferred_interface);
 
-        if (!intf_desc || intf_desc->bInterfaceClass != USB_CLASS_HID)
+    const usb_intf_desc_t *selected = nullptr;
+
+    for (uint8_t interface_num = 0; interface_num < config_desc->bNumInterfaces; ++interface_num)
+    {
+        int offset = 0;
+
+        const usb_intf_desc_t *candidate = usb_parse_interface_descriptor(
+            config_desc,
+            interface_num,
+            0,
+            &offset);
+
+        if (!candidate || candidate->bInterfaceClass != USB_CLASS_HID)
+        {
             continue;
+        }
 
-        if (vertiv_pst && intf_desc->bInterfaceNumber != 1)
+        if (has_preferred_interface && candidate->bInterfaceNumber != preferred_interface)
+        {
             continue;
+        }
 
-        device_.interface_num = intf_desc->bInterfaceNumber;
+        selected = candidate;
         break;
     }
-    
+
+    if (!selected)
+    {
+        set_last_error("No suitable HID interface found");
+        return ESP_ERR_NOT_FOUND;
+    }
+
+    device_.interface_num = selected->bInterfaceNumber;
+
     ESP_LOGI(
         ESP32_USB_TAG,
         "Selected HID interface %u%s",
         device_.interface_num,
-        vertiv_pst ? " (Vertiv 10AF:0002 override)" : ""
-    );
-    
-    if (!intf_desc || intf_desc->bInterfaceClass != USB_CLASS_HID) {
-        set_last_error("No HID interface found");
-        return ESP_ERR_NOT_FOUND;
-    }
-    
-    ret = usb_host_interface_claim(device_.client_hdl, device_.dev_hdl, 
-                                  device_.interface_num, 0);
-    if (ret != ESP_OK) {
+        has_preferred_interface ? " (device quirk)" : "");
+
+    ret = usb_host_interface_claim(
+        device_.client_hdl,
+        device_.dev_hdl,
+        device_.interface_num,
+        0);
+
+    if (ret != ESP_OK)
+    {
         set_last_error("Failed to claim interface: " + std::string(esp_err_to_name(ret)));
         return ret;
     }
-    
+
     return ESP_OK;
 }
 
