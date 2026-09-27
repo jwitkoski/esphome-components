@@ -542,7 +542,7 @@ esp_err_t Esp32UsbTransport::claim_interface() {
     for (int i = 0; i < config_desc->bNumInterfaces; i++) {
         intf_desc = usb_parse_interface_descriptor(config_desc, i, 0, &offset);
 
-        if (!intf_desc || intf_desc->bInterfaceClass != USB_HID_CLASS)
+        if (!intf_desc || intf_desc->bInterfaceClass != USB_CLASS_HID)
             continue;
 
         if (vertiv_pst && intf_desc->bInterfaceNumber != 1)
